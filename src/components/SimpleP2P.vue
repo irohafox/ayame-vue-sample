@@ -1,15 +1,17 @@
 <template>
   <div class="main">
-  <h1 id="title">{{ title }}</h1>
-  <label for="url">シグナリングサーバのURL:</label>
-  <input type="text" id="url" name="url" required value="ws://localhost:3000/ws">
+    <div id="title">
+      <h2>{{ title }}</h2>
+      <label for="url">シグナリングサーバのURL:</label>
+      <input type="text" id="url" v-model="wsUrl" required>
+    </div>
   <div id="buttons">
   <button type="button" @click="connect()">接続</button>
-  <button type="button" @click="disconnect">切断</button>
+  <button type="button" @click="disconnect()">切断</button>
   </div>
   <div id="videos">
   <video ref="remoteVideo" id="remote-video" autoplay></video>
-  <video ref="localVideo" id="local-video" autoplay></video>
+  <video ref="localVideo" id="local-video" autoplay muted></video>
   </div>
   </div>
 </template>
@@ -21,47 +23,33 @@ import { Component, Prop, Vue } from 'vue-property-decorator';
 export default class P2P extends Vue {
   @Prop() private title!: string;
   private wsUrl: string = 'ws://localhost:3000/ws';
-  private ws: WebSocket | null = null;
+  private ws: WebSocket = new WebSocket(this.wsUrl);
   private isNegotiating: boolean = false;
-  private peerConnection: RTCPeerConnection | null = null;
-  private localVideo: any = null;
+  private peerConnection: RTCPeerConnection | null  = null;
   private localStream: MediaStream | null = null;
   private peerConnectionConfig: object = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
   };
-  private tracks: any[] = [];
+  private tracks: MediaStreamTrack[] = [];
 
   public mounted(): void {
-    this.startVideo();
+      this.startLocalVideo();
   }
 
 
   public connect(): void {
     this.tracks = [];
     this.isNegotiating = false;
-    // ws がない場合は新規作成
-    this.ws = new WebSocket(this.wsUrl);
-    this.ws.onmessage = this.onWsMessage.bind(this);
-
-    if (!this.peerConnection) {
-      this.prepareNewConnection(true);
-      if (this.localStream) {
-        const videoTrack = this.localStream.getVideoTracks()[0];
-        const audioTrack = this.localStream.getAudioTracks()[0];
-        if (this.peerConnection) {
-          if (videoTrack) {
-            this.peerConnection.addTrack(videoTrack, this.localStream);
-          }
-          if (audioTrack) {
-            this.peerConnection.addTrack(audioTrack, this.localStream);
-          }
-        }
+    const ws = new WebSocket(this.wsUrl);
+    ws.onopen = () => {
+      ws.onmessage = this.onWsMessage.bind(this);
+      if (!this.peerConnection) {
+        this.peerConnection = this.createPeerConnection(true);
       } else {
-        console.warn('no local stream, but continue.');
+        console.warn('peer already exist.');
       }
-    } else {
-      console.warn('peer already exist.');
-    }
+    };
+    this.ws = ws;
   }
 
   public disconnect(): void {
@@ -69,62 +57,64 @@ export default class P2P extends Vue {
       if (this.peerConnection.iceConnectionState !== 'closed') {
         // peer connection を閉じる
         this.peerConnection.close();
-        const message = JSON.stringify({ type: 'close' });
-        console.log('sending close message');
-        if (this.ws) {
-          this.ws.send(message);
-        } else {
-          console.error('websocket connection does not exist!');
-        }
-        this.peerConnection = null;
       }
+      this.peerConnection = null;
     }
   }
 
-  private async startVideo(): Promise<void> {
+  private async startLocalVideo(): Promise<void> {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-      this.playLocalVideo();
+      const video: HTMLVideoElement = this.$refs.localVideo as HTMLVideoElement;
+      video.srcObject = this.localStream;
     } catch (error) {
       console.error('mediaDevice.getUserMedia() error:', error);
     }
   }
 
-  private playLocalVideo() {
-    const video: HTMLVideoElement = this.$refs.localVideo as HTMLVideoElement;
-    video.srcObject = this.localStream;
-    console.log('play local video');
-    video.play();
-  }
-
-  private playRemoteVideo(remoteStream: MediaStream) {
+  private startRemoteVideo(remoteStream: MediaStream) {
     const video: HTMLVideoElement = this.$refs.remoteVideo as HTMLVideoElement;
     video.srcObject = remoteStream;
     console.log('play remote video');
-    video.play();
+  }
+
+  private addIceCandidate(candidate: RTCIceCandidate) {
+    console.log('add ice candidate', candidate);
+    if (this.peerConnection) {
+      this.peerConnection.addIceCandidate(candidate);
+    } else {
+      console.error('PeerConnection does not exist!');
+    }
   }
 
   private async setAnswer(sessionDescription: RTCSessionDescription) {
-    try {
-      await this.peerConnection.setRemoteDescription(sessionDescription);
-    } catch (error) {
-      console.error('setRemoteDescription(answer) ERROR: ', error);
+    if (this.peerConnection) {
+      try {
+        await this.peerConnection.setRemoteDescription(sessionDescription);
+        console.log('setRemoteDescription(answer) success in promise');
+      } catch (error) {
+        console.error('setRemoteDescription(answer) ERROR: ', error);
+      }
     }
   }
 
   private async makeAnswer() {
-    try {
-      const answer = await this.peerConnection.createAnswer();
-      await this.peerConnection.setLocalDescription(answer);
-      const localDescription = this.peerConnection.localDescription;
-      this.sendSdp(localDescription);
-    } catch (error) {
-      console.error('makeAnswer ERROR: ', error);
+    if (this.peerConnection) {
+      try {
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+        const localDescription = this.peerConnection.localDescription;
+        if (localDescription) {
+          this.sendSdp(localDescription);
+        }
+      } catch (error) {
+        console.error('makeAnswer ERROR: ', error);
+      }
     }
   }
 
   private async setOffer(sessionDescription: RTCSessionDescription) {
-    this.prepareNewConnection(false);
+    this.peerConnection = this.createPeerConnection(false);
     try {
       if (this.peerConnection) {
         await this.peerConnection.setRemoteDescription(sessionDescription);
@@ -137,33 +127,26 @@ export default class P2P extends Vue {
   }
 
   private sendSdp(sessionDescription: RTCSessionDescription) {
-    if (this.ws) {
-      console.log('---sending sdp ---');
-      const message = JSON.stringify(sessionDescription);
-      console.log('sending SDP=' + message);
-      this.ws.send(message);
-    } else {
-      console.error('websocket connection does not exist!');
-    }
+    console.log('---sending sdp ---');
+    const message = JSON.stringify(sessionDescription);
+    console.log('sending SDP=' + message);
+    this.ws.send(message);
   }
 
-  private prepareNewConnection(isOffer: boolean): void {
+  private createPeerConnection(isOffer: boolean): RTCPeerConnection {
     const peer: RTCPeerConnection = new RTCPeerConnection(this.peerConnectionConfig);
-
     if ('ontrack' in peer) {
       peer.ontrack = this.onTrack.bind(this);
-    } else {
+    } else if ('onaddstream' in peer) {
+      // @ts-ignore
       peer.onaddstream = this.onAddStream.bind(this);
     }
-
     peer.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
         console.log('-- peer.onicecandidate()', event.candidate);
         const candidate = event.candidate;
         const message = JSON.stringify({ type: 'candidate', ice: candidate });
-        if (this.ws) {
-          this.ws.send(message);
-        }
+        this.ws.send(message);
       } else {
         console.log('empty ice event');
       }
@@ -171,6 +154,7 @@ export default class P2P extends Vue {
 
     peer.onnegotiationneeded = async () => {
       if (this.isNegotiating) {
+        console.log('skip negotiation');
         return;
       }
       try {
@@ -178,9 +162,10 @@ export default class P2P extends Vue {
         if (isOffer) {
           const offer = await peer.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true});
           await peer.setLocalDescription(offer);
-          this.sendSdp(peer.localDescription);
+          if (peer.localDescription) {
+            this.sendSdp(peer.localDescription);
+          }
         }
-        this.isNegotiating = false;
       } catch (error) {
         console.error('setLocalDescription(offer) ERROR: ', error);
       }
@@ -201,14 +186,26 @@ export default class P2P extends Vue {
           break;
       }
     };
-    this.peerConnection = peer;
+    if (this.localStream) {
+      const videoTrack = this.localStream.getVideoTracks()[0];
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (videoTrack) {
+          peer.addTrack(videoTrack, this.localStream);
+        }
+      if (audioTrack) {
+          peer.addTrack(audioTrack, this.localStream);
+        }
+    } else {
+      console.warn('no local stream, but continue.');
+    }
+    return peer;
   }
 
   private onAddStream(event: MediaStreamEvent): void {
     console.log('-- peer.onaddstream()', event);
     if (event.stream) {
       const stream = event.stream as MediaStream;
-      this.playRemoteVideo(stream);
+      this.startRemoteVideo(stream);
     }
   }
 
@@ -217,7 +214,7 @@ export default class P2P extends Vue {
     this.tracks.push(event.track);
     const mediaStream = new MediaStream(this.tracks);
     if (mediaStream) {
-      this.playRemoteVideo(mediaStream);
+      this.startRemoteVideo(mediaStream);
     }
   }
 
@@ -235,10 +232,8 @@ export default class P2P extends Vue {
         break;
       case 'candidate':
         console.log('Received ICE candidate ...');
-        if (this.peerConnection) {
-          const candidate: RTCIceCandidate = new RTCIceCandidate(message.ice);
-          this.peerConnection.addIceCandidate(candidate);
-        }
+        const candidate: RTCIceCandidate = new RTCIceCandidate(message.ice);
+        this.addIceCandidate(candidate);
         break;
       case 'close':
         console.log('peer is closed ...');
@@ -254,6 +249,9 @@ export default class P2P extends Vue {
 </script>
 
 <style scoped>
+main {
+  text-align: center;
+}
 #title {
   position: absolute;
   z-index: 3;

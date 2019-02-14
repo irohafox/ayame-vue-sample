@@ -2,25 +2,40 @@
 
 このサンプルは [WebRTC Signaling Server Ayame](https://github.com/shiguredo/ayame) で利用可能な Vue を利用したサンプルです。
 
-## セットアップ
+[WebRTC Signaling Server Ayame](https://github.com/shiguredo/ayame) の Vue.js 版サンプルクライアントです。
+
+## 動かし方
+
+[Ayame Server](https://github.com/shiguredo/ayame) をクローンし、USE.md を参考に起動しておきます。
+
+このリポジトリをクローンし、
+
 ```
-yarn install
+$ yarn install
+```
+を実行し、依存ライブラリをインストールしたら、
+
+```
+$ yarn  serve
 ```
 
-### Compiles and hot-reloads for development
-```
-yarn run serve
-```
+を実行して、クライアントを serve します。
 
-### Compiles and minifies for production
 ```
-yarn run build
-```
+ DONE  Compiled successfully in 146ms
 
-### Lints and fixes files
+Type checking and linting in progress...
+
+  App running at:
+  - Local:   http://localhost:8080/
+  - Network: http://192.168.11.53:8080/
 ```
-yarn run lint
-```
+- http://localhost:8080/ にアクセスすると、起動しているアプリが表示されます。
+
+- (オプション) input form にシグナリングサーバの向き先を指定します。デフォルトだと ws://localhost:3000/ws  になっています。
+
+- 「接続」をクリックすると、P2P 接続が開始します。
+
 
 ## ライセンス
 

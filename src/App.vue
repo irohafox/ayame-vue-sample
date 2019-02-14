@@ -1,16 +1,16 @@
 <template>
   <div id="app">
-    <P2P title="Ayame P2P Demo(Vue Version)" />
+    <SimpleP2P title="Ayame P2P Demo(Vue Version)" />
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
-import P2P from './components/P2P.vue';
+import SimpleP2P from './components/SimpleP2P.vue';
 
 @Component({
   components: {
-    P2P,
+    SimpleP2P,
   },
 })
 export default class App extends Vue {}
