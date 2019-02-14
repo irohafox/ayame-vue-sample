@@ -2,8 +2,6 @@
 
 このサンプルは [WebRTC Signaling Server Ayame](https://github.com/shiguredo/ayame) で利用可能な Vue を利用したサンプルです。
 
-[WebRTC Signaling Server Ayame](https://github.com/shiguredo/ayame) の Vue.js 版サンプルクライアントです。
-
 ## 動かし方
 
 [Ayame Server](https://github.com/shiguredo/ayame) をクローンし、USE.md を参考に起動しておきます。
