@@ -23,7 +23,7 @@ import { Component, Prop, Vue } from 'vue-property-decorator';
 export default class P2P extends Vue {
   @Prop() private title!: string;
   private wsUrl: string = 'ws://localhost:3000/ws';
-  private ws: WebSocket = new WebSocket(this.wsUrl);
+  private ws: WebSocket | null = null;
   private isNegotiating: boolean = false;
   private peerConnection: RTCPeerConnection | null  = null;
   private localStream: MediaStream | null = null;
@@ -40,6 +40,7 @@ export default class P2P extends Vue {
   public connect(): void {
     this.tracks = [];
     this.isNegotiating = false;
+    console.log(this.wsUrl);
     const ws = new WebSocket(this.wsUrl);
     ws.onopen = () => {
       ws.onmessage = this.onWsMessage.bind(this);
@@ -57,6 +58,10 @@ export default class P2P extends Vue {
       if (this.peerConnection.iceConnectionState !== 'closed') {
         // peer connection を閉じる
         this.peerConnection.close();
+      }
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
       }
       this.peerConnection = null;
     }
@@ -127,10 +132,12 @@ export default class P2P extends Vue {
   }
 
   private sendSdp(sessionDescription: RTCSessionDescription) {
-    console.log('---sending sdp ---');
-    const message = JSON.stringify(sessionDescription);
-    console.log('sending SDP=' + message);
-    this.ws.send(message);
+    if (this.ws) {
+      console.log('---sending sdp ---');
+      const message = JSON.stringify(sessionDescription);
+      console.log('sending SDP=' + message);
+      this.ws.send(message);
+    }
   }
 
   private createPeerConnection(isOffer: boolean): RTCPeerConnection {
@@ -145,8 +152,10 @@ export default class P2P extends Vue {
       if (event.candidate) {
         console.log('-- peer.onicecandidate()', event.candidate);
         const candidate = event.candidate;
-        const message = JSON.stringify({ type: 'candidate', ice: candidate });
-        this.ws.send(message);
+        if (this.ws) {
+          const message = JSON.stringify({ type: 'candidate', ice: candidate });
+          this.ws.send(message);
+        }
       } else {
         console.log('empty ice event');
       }
