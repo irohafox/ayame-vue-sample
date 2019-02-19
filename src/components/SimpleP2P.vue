@@ -2,9 +2,17 @@
   <div class="main">
     <div id="title">
       <h2>{{ title }}</h2>
+    </div>
+  <div id="inputs">
+    <div class="input">
       <label for="url">シグナリングサーバのURL:</label>
       <input type="text" id="url" v-model="wsUrl" required>
     </div>
+    <div class="input">
+      <label for="roomId">部屋のID:</label>
+      <input type="text" id="roomId" v-model="roomId" required>
+    </div>
+  </div>
   <div id="buttons">
   <button type="button" @click="connect()">接続</button>
   <button type="button" @click="disconnect()">切断</button>
@@ -18,11 +26,13 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
+import { randomString } from '../utils'
 
 @Component
 export default class P2P extends Vue {
   @Prop() private title!: string;
   private wsUrl: string = 'ws://localhost:3000/ws';
+  private roomId: string = randomString(9);
   private ws: WebSocket | null = null;
   private isNegotiating: boolean = false;
   private peerConnection: RTCPeerConnection | null  = null;
@@ -43,6 +53,10 @@ export default class P2P extends Vue {
     console.log(this.wsUrl);
     const ws = new WebSocket(this.wsUrl);
     ws.onopen = () => {
+      ws.send(JSON.stringify({
+            type: 'register',
+            room_id: this.roomId,
+            }));
       ws.onmessage = this.onWsMessage.bind(this);
       if (!this.peerConnection) {
         this.peerConnection = this.createPeerConnection(true);
@@ -269,6 +283,20 @@ main {
   transform: translate(-50%, -50%);
   top: 40px;
 }
+
+#inputs{
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  top: 80px;
+}
+
+.input {
+  display: inline-block;
+}
+
 #videos {
   font-size: 0;
   pointer-events: none;
