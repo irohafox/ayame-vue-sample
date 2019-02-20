@@ -58,11 +58,6 @@ export default class P2P extends Vue {
             room_id: this.roomId,
             }));
       ws.onmessage = this.onWsMessage.bind(this);
-      if (!this.peerConnection) {
-        this.peerConnection = this.createPeerConnection(true);
-      } else {
-        console.warn('peer already exist.');
-      }
     };
     this.ws = ws;
   }
@@ -73,7 +68,7 @@ export default class P2P extends Vue {
         // peer connection を閉じる
         this.peerConnection.close();
       }
-      if (this.ws) {
+      if (this.ws && this.ws.readyState < 2) {
         this.ws.close();
         this.ws = null;
       }
@@ -245,6 +240,16 @@ export default class P2P extends Vue {
     console.log('ws onmessage() data:', event.data);
     const message = JSON.parse(event.data);
     switch (message.type) {
+      case 'accept':
+        console.log('Received Accept ...', message);
+        if (!this.peerConnection) {
+          this.peerConnection = this.createPeerConnection(true);
+        } else {
+          console.warn('peer already exist.');
+        }
+      case 'reject':
+        console.log('Received Reject ...', message);
+        this.disconnect();
       case 'offer':
         console.log('Received offer ...', message);
         this.setOffer(message);
@@ -257,10 +262,6 @@ export default class P2P extends Vue {
         console.log('Received ICE candidate ...');
         const candidate: RTCIceCandidate = new RTCIceCandidate(message.ice);
         this.addIceCandidate(candidate);
-        break;
-      case 'close':
-        console.log('peer is closed ...');
-        this.disconnect();
         break;
       default:
         console.log('Invalid message type: ', message.type);
