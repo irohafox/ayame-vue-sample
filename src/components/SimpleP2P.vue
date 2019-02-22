@@ -26,13 +26,14 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import { randomString } from '../utils'
+import { randomString } from '../utils';
 
 @Component
 export default class P2P extends Vue {
   @Prop() private title!: string;
   private wsUrl: string = 'ws://localhost:3000/ws';
   private roomId: string = randomString(9);
+  private clientId: string = randomString(17);
   private ws: WebSocket | null = null;
   private isNegotiating: boolean = false;
   private peerConnection: RTCPeerConnection | null  = null;
@@ -56,6 +57,7 @@ export default class P2P extends Vue {
       ws.send(JSON.stringify({
             type: 'register',
             room_id: this.roomId,
+            client_id: this.clientId,
             }));
       ws.onmessage = this.onWsMessage.bind(this);
     };
