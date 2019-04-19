@@ -249,9 +249,11 @@ export default class P2P extends Vue {
         } else {
           console.warn('peer already exist.');
         }
+        break;
       case 'reject':
         console.log('Received Reject ...', message);
         this.disconnect();
+        break;
       case 'offer':
         console.log('Received offer ...', message);
         this.setOffer(message);
